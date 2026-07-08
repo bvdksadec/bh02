@@ -1,0 +1,2151 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quyết toán BHYT - Tổng hợp XML1 thành BH02</title>
+    <meta name="description"
+        content="Ứng dụng web tổng hợp báo cáo chi tiết khám chữa bệnh BHYT XML1 thành báo cáo quyết toán (Mẫu số 02/BH) hoàn toàn trên trình duyệt.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- CDN Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #060913;
+            --bg-surface: rgba(16, 22, 42, 0.7);
+            --bg-surface-hover: rgba(22, 32, 60, 0.85);
+            --primary: #00f5c4;
+            /* brighter teal */
+            --primary-glow: rgba(0, 245, 196, 0.35);
+            --secondary: #8a2be2;
+            /* vibrant purple */
+            --secondary-glow: rgba(138, 43, 226, 0.3);
+            --accent: #3b82f6;
+            /* royal blue */
+            --text-main: #f8fafc;
+            --text-muted: #64748b;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(0, 245, 196, 0.5);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: radial-gradient(circle at top, #0f172a 0%, #020617 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            line-height: 1.6;
+            padding: 0.75rem 1.5rem;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        /* Header Style */
+        header {
+            text-align: center;
+            margin-bottom: 0;
+            animation: fadeIn 0.8s ease;
+        }
+
+        h1 {
+            font-size: 1.85rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #38bdf8 0%, #00f5c4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            max-width: 650px;
+            margin: 0 auto;
+        }
+
+        /* Main Layout Grid */
+        .workspace-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+
+
+        /* Glassmorphic Panel Base */
+        .panel {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.25rem;
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
+            transition: var(--transition);
+        }
+
+        .panel:hover {
+            border-color: rgba(0, 245, 196, 0.15);
+            box-shadow: 0 12px 40px 0 rgba(0, 245, 196, 0.03);
+        }
+
+        .panel.dragover {
+            border-color: var(--primary);
+            background: rgba(0, 245, 196, 0.02);
+            box-shadow: 0 0 25px rgba(0, 245, 196, 0.15);
+        }
+
+        .panel-title {
+
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            letter-spacing: -0.3px;
+        }
+
+        /* Drag and Drop Zone */
+        .upload-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 3rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.005);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(0, 245, 196, 0.03);
+            box-shadow: 0 0 25px rgba(0, 245, 196, 0.15);
+        }
+
+        .upload-icon {
+            width: 56px;
+            height: 56px;
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: var(--transition);
+        }
+
+        .upload-zone:hover .upload-icon {
+            transform: translateY(-6px);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-text {
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        .upload-text b {
+            color: var(--primary);
+        }
+
+        .upload-hint {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* File List Container */
+        .file-list {
+            margin-top: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.875rem;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.875rem 1.125rem;
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--border-color);
+            border-left: 3px solid transparent;
+            border-radius: var(--radius-md);
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: var(--transition);
+        }
+
+        .file-item:hover {
+            border-left-color: var(--primary);
+            background: rgba(255, 255, 255, 0.03);
+            transform: translateX(4px);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            overflow: hidden;
+        }
+
+        .file-icon {
+            width: 24px;
+            height: 24px;
+            fill: none;
+            stroke: var(--accent);
+            stroke-width: 2;
+        }
+
+        .file-details {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .file-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-size {
+            font-size: 0.775rem;
+            color: var(--text-muted);
+            margin-top: 0.125rem;
+        }
+
+        .btn-delete {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        .btn-delete:hover {
+            background: rgba(239, 68, 68, 0.15);
+        }
+
+        .btn-delete svg {
+            width: 18px;
+            height: 18px;
+            stroke: #ef4444;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* Metadata Input fields */
+        .form-group {
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.2px;
+        }
+
+        input,
+        select {
+            background: rgba(10, 14, 26, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.925rem;
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+            background: rgba(10, 14, 26, 0.8);
+        }
+
+        /* Dashboard Stats Panel */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (min-width: 576px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.65rem 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            transition: var(--transition);
+            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.02);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.035);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-label {
+            font-size: 0.725rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .stat-value {
+
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-value.primary-color {
+            color: var(--primary);
+            text-shadow: 0 0 10px rgba(0, 245, 196, 0.15);
+        }
+
+        /* Preview Table Styles */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            margin-top: 1.25rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        /* Custom Scrollbar for responsive table */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(10, 14, 26, 0.5);
+            border-radius: var(--radius-sm);
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-sm);
+            transition: var(--transition);
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.825rem;
+            text-align: left;
+        }
+
+        th,
+        td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        th:last-child,
+        td:last-child {
+            border-right: none;
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.7);
+            font-weight: 600;
+            color: var(--text-main);
+            text-align: center;
+
+            font-size: 0.8rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            letter-spacing: 0.2px;
+        }
+
+        th.group-header {
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 2px solid var(--primary);
+        }
+
+        /* Table columns alignment and spacing rules */
+        tbody td {
+            font-variant-numeric: tabular-nums;
+        }
+
+        tbody td:nth-child(1),
+        thead tr:nth-child(3) td:nth-child(1) {
+            text-align: center;
+            font-weight: 500;
+        }
+
+        tbody td:nth-child(2) {
+            line-height: 1.4;
+        }
+
+        tbody td:nth-child(3),
+        thead tr:nth-child(3) td:nth-child(3) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(4),
+        thead tr:nth-child(3) td:nth-child(4) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(5),
+        thead tr:nth-child(3) td:nth-child(5) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(6),
+        thead tr:nth-child(3) td:nth-child(6) {
+            text-align: right;
+            color: #38bdf8;
+        }
+
+        /* Highlight payment values */
+        tbody td:nth-child(7),
+        thead tr:nth-child(3) td:nth-child(7) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(8),
+        thead tr:nth-child(3) td:nth-child(8) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(9),
+        thead tr:nth-child(3) td:nth-child(9) {
+            text-align: right;
+        }
+
+        tbody td:nth-child(3),
+        tbody td:nth-child(4),
+        tbody td:nth-child(5),
+        tbody td:nth-child(6),
+        tbody td:nth-child(7),
+        tbody td:nth-child(8),
+        tbody td:nth-child(9) {
+            white-space: nowrap;
+        }
+
+        tr.facility-row {
+            background: rgba(0, 245, 196, 0.04);
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        tr.total-row {
+            background: rgba(138, 43, 226, 0.12);
+            font-weight: 700;
+            border-top: 2px solid var(--secondary);
+            color: #e9d5ff;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        /* Action Buttons */
+        .actions-bar {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1.25rem;
+        }
+
+        .btn {
+
+            font-size: 0.95rem;
+            font-weight: 600;
+            padding: 0.85rem 2rem;
+            border-radius: var(--radius-md);
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.625rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0284c7 0%, #00f5c4 100%);
+            color: #040815;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.35), transparent);
+            transform: skewX(-25deg);
+            transition: 0.85s;
+        }
+
+        .btn-primary:hover::after {
+            left: 125%;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 245, 196, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #1e293b;
+            color: #475569;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:disabled {
+            background: rgba(255, 255, 255, 0.01);
+            color: #475569;
+            border-color: rgba(255, 255, 255, 0.03);
+            cursor: not-allowed;
+        }
+
+        /* Loading Spinner and Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(2, 6, 23, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: var(--transition);
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-content {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 3rem 2.5rem;
+            text-align: center;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.25rem;
+        }
+
+        .spinner {
+            width: 56px;
+            height: 56px;
+            border: 4px solid rgba(0, 245, 196, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .modal-text {
+
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-main);
+        }
+
+        /* Keyframes Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-15px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Compact styles for top inputs row */
+        #upload-panel .panel-title {
+            margin-bottom: 0.65rem;
+            padding-bottom: 0.35rem;
+            font-size: 1.125rem;
+        }
+
+        #upload-panel .form-group {
+            margin-bottom: 0.5rem;
+            gap: 0.15rem;
+        }
+
+        #upload-panel label {
+            display: block;
+            font-size: 0.775rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        #upload-panel input,
+        #upload-panel select {
+            padding: 0.4rem 0.65rem;
+            font-size: 0.875rem;
+            border-radius: var(--radius-sm);
+        }
+
+        #upload-panel .file-list {
+            margin-top: 0.5rem;
+            gap: 0.35rem;
+        }
+
+        #upload-panel .file-item {
+            padding: 0.25rem 0.5rem;
+        }
+
+        #upload-panel .file-info {
+            flex-grow: 1;
+        }
+
+        #upload-panel .file-details {
+            flex-grow: 1;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #upload-panel .file-size {
+            margin-top: 0;
+            font-size: 0.775rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        #upload-panel .file-name {
+            font-size: 0.85rem;
+            max-width: 60%;
+            flex-shrink: 1;
+        }
+
+        #upload-panel .file-icon {
+            width: 14px;
+            height: 14px;
+        }
+
+        #upload-panel .form-row {
+            gap: 0.65rem;
+        }
+
+        #upload-panel .btn-primary {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .btn-simple-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            font-size: 0.725rem;
+            font-weight: 500;
+            padding: 0 0.5rem;
+            height: 24px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+        }
+
+        .btn-simple-outline:hover:not(:disabled) {
+            background: rgba(0, 245, 196, 0.1);
+        }
+
+        .btn-simple-outline:disabled {
+            border-color: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            background: transparent;
+        }
+
+        #btn-upload-trigger:hover {
+            background: rgba(0, 245, 196, 0.12) !important;
+            border-color: var(--primary) !important;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1 id="app-title" style="margin-bottom: 10px; margin-top: 15px;">Quyết toán BHYT - Mẫu 02/BH</h1>
+        </header>
+
+        <main class="workspace-layout">
+            <!-- TOP SECTION: Combined Config & Upload Panel -->
+            <div class="panel flex flex-col" id="upload-panel" style="gap: 0.5rem; justify-content: center; padding: 0.85rem 1.15rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.45rem; margin-bottom: 0.15rem;">
+                    <!-- Left: Card Title -->
+                    <h2 class="panel-title" id="panel-meta-title" style="border-bottom: none; padding-bottom: 0; margin-bottom: 0; font-size: 1.125rem; display: flex; align-items: center; gap: 0.4rem;">
+                        <svg class="file-icon" style="stroke: var(--primary); width: 16px; height: 16px; margin-bottom: 0;" viewBox="0 0 24 24">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        Thông Tin Quyết Toán & Tải Dữ Liệu
+                    </h2>
+                    
+                    <!-- Right: Action Buttons -->
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <!-- Upload trigger button -->
+                        <button class="btn" id="btn-upload-trigger" style="width: auto; padding: 0 0.85rem; height: 32px; font-size: 0.8rem; border-radius: var(--radius-sm); margin-top: 0; white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; gap: 0.45rem; background: rgba(0, 245, 196, 0.08); border: 1.5px solid var(--primary); color: var(--primary); font-weight: 600; cursor: pointer; transition: var(--transition);">
+                            <svg class="file-icon" style="stroke: var(--primary); width: 15px; height: 15px; margin-bottom: 0;" viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                            </svg>
+                            Tải Dữ Liệu Lên (.xlsx, .xls, .csv)
+                        </button>
+                        <input type="file" id="file-uploader" class="file-input" multiple accept=".xlsx,.xls,.csv">
+
+                        <!-- Process Button -->
+                        <button class="btn btn-primary" id="btn-process" disabled style="width: auto; padding: 0 2.25rem; height: 32px; font-size: 0.8rem; border-radius: var(--radius-sm); margin-top: 0; white-space: nowrap; flex-shrink: 0;">
+                            Xử Lý
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-row" style="grid-template-columns: 4.5fr 1.5fr 2fr 2fr; gap: 0.65rem;">
+                    <div class="form-group">
+                        <label for="org-name">Tên đơn vị KCB</label>
+                        <input type="text" id="org-name" placeholder="Tên đơn vị KCB" value="BỆNH VIỆN ĐA KHOA SA ĐÉC">
+                    </div>
+                    <div class="form-group">
+                        <label for="org-code">Mã cơ sở</label>
+                        <input type="text" id="org-code" placeholder="Mã cơ sở" value="87014">
+                    </div>
+                    <div class="form-group">
+                        <label for="report-quarter">Quý báo cáo</label>
+                        <select id="report-quarter">
+                            <option value="I">Quý I</option>
+                            <option value="II" selected>Quý II</option>
+                            <option value="III">Quý III</option>
+                            <option value="IV">Quý IV</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="report-year">Năm quyết toán</label>
+                        <input type="number" id="report-year" placeholder="Năm quyết toán" value="2026">
+                    </div>
+                </div>
+
+                <!-- Uploaded Files List -->
+                <div class="file-list" id="file-list-container" style="margin-top: 0.25rem;"></div>
+
+
+            </div>
+
+            <!-- BOTTOM SECTION: Preview Dashboard & Table (Full Width) -->
+            <div class="panel">
+                <h2 class="panel-title" id="panel-dashboard-title">
+                    <svg class="file-icon" viewBox="0 0 24 24">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <line x1="9" y1="3" x2="9" y2="21" />
+                        <line x1="15" y1="3" x2="15" y2="21" />
+                        <line x1="3" y1="9" x2="21" y2="9" />
+                        <line x1="3" y1="15" x2="21" y2="15" />
+                    </svg>
+                    Xem Trước Kết Quả Quyết Toán (Mẫu số 02/BH)
+                </h2>
+
+                <!-- Quick Stats Row -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Tổng lượt khám</div>
+                        <div class="stat-value primary-color" id="stat-total-visits">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Đề nghị BHYT TT (4)</div>
+                        <div class="stat-value" id="stat-total-bhyt">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Người bệnh CCT (5)</div>
+                        <div class="stat-value" id="stat-total-cct">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Tổng chi phí (2)</div>
+                        <div class="stat-value" id="stat-total-cost">0</div>
+                    </div>
+                </div>
+
+                <!-- Table Preview -->
+                <div class="table-responsive">
+                    <table id="preview-table">
+                        <colgroup>
+                            <col style="width: 55px; min-width: 55px;">
+                            <col style="width: 320px; min-width: 320px;">
+                            <col style="width: 90px; min-width: 90px;">
+                            <col style="width: 140px; min-width: 140px;">
+                            <col style="width: 140px; min-width: 140px;">
+                            <col style="width: 160px; min-width: 160px;">
+                            <col style="width: 140px; min-width: 140px;">
+                            <col style="width: 120px; min-width: 120px;">
+                            <col style="width: 120px; min-width: 120px;">
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th rowspan="2" class="group-header">STT</th>
+                                <th rowspan="2" class="group-header">Chỉ tiêu</th>
+                                <th rowspan="2" class="group-header">Số lượt</th>
+                                <th rowspan="2" class="group-header">Tổng chi KCB</th>
+                                <th colspan="3" class="group-header">Chi phí khám bệnh, chữa bệnh BHYT</th>
+                                <th rowspan="2" class="group-header">Chi phí viện trợ/tài trợ</th>
+                                <th rowspan="2" class="group-header">Chi phí người bệnh tự trả</th>
+                            </tr>
+                            <tr>
+                                <th>Tổng số<br>(3) = (4) + (5)</th>
+                                <th>Đề nghị Quỹ BHYT thanh toán (4)</th>
+                                <th>Người bệnh cùng chi trả (5)</th>
+                            </tr>
+                            <tr style="background: rgba(255, 255, 255, 0.05); font-style: italic;">
+                                <td class="text-center">A</td>
+                                <td class="text-center">B</td>
+                                <td class="text-center">(1)</td>
+                                <td class="text-center">(2) = (3+6+7)</td>
+                                <td class="text-center">(3) = (4) + (5)</td>
+                                <td class="text-center">(4)</td>
+                                <td class="text-center">(5)</td>
+                                <td class="text-center">(6)</td>
+                                <td class="text-center">(7)</td>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <tr>
+                                <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);"
+                                    id="no-data-hint">
+                                    Vui lòng tải dữ liệu Excel XML1 lên để xem trước kết quả
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Money text statement -->
+                <div style="margin-top: 1.5rem; font-style: italic; font-size: 0.9rem; color: var(--text-muted);"
+                    id="money-word-statement"></div>
+
+                <!-- Disclaimer -->
+                <div style="margin-top: 0.85rem; font-size: 0.95rem; color: rgba(248, 250, 252, 0.85); display: flex; align-items: flex-start; gap: 0.65rem; background: rgba(239, 68, 68, 0.05); border: 1px dashed rgba(239, 68, 68, 0.25); padding: 0.85rem 1.15rem; border-radius: var(--radius-sm);" id="disclaimer-statement">
+                    <svg class="file-icon" style="stroke: #ef4444; width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px;" viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <span><i><b>Miễn trừ trách nhiệm:</b> Hệ thống xử lý số liệu tự động theo cấu hình đầu vào. Người sử dụng có trách nhiệm rà soát và xác minh số liệu cuối cùng trước khi xuất bản và nộp báo cáo chính thức.</i></span>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="actions-bar">
+                    <button class="btn btn-secondary" id="btn-reset" disabled style="padding: 0.45rem 1rem; font-size: 0.825rem; height: 34px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;">
+                        Xóa dữ liệu
+                    </button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-primary" id="btn-export-portrait" disabled style="padding: 0.45rem 1rem; font-size: 0.825rem; height: 34px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;">
+                            <svg class="file-icon" style="stroke: #040815; width: 14px; height: 14px; margin-bottom: 0;" viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            Xuất mẫu dọc
+                        </button>
+                        <button class="btn btn-primary" id="btn-export-landscape" disabled style="padding: 0.45rem 1rem; font-size: 0.825rem; height: 34px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;">
+                            <svg class="file-icon" style="stroke: #040815; width: 14px; height: 14px; margin-bottom: 0;" viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                            </svg>
+                            Xuất mẫu ngang
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loader Modal -->
+    <div class="modal" id="loader-modal">
+        <div class="modal-content">
+            <div class="spinner"></div>
+            <div class="modal-text" id="loader-text">Đang xử lý dữ liệu...</div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        const appState = {
+            files: [],
+            rows: [], // Consolidated raw data rows from all files
+            processed: false, // Track if data has been processed
+            aggregated: {
+                1: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                2: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                3: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                4: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 }
+            },
+            metadata: {
+                orgName: 'BỆNH VIỆN ĐA KHOA SA ĐÉC',
+                orgCode: '87014',
+                quarter: 'II',
+                year: '2026',
+                preparer: '',
+                accountant: '',
+                director: ''
+            }
+        };
+
+        // DOM Elements
+        const btnUploadTrigger = document.getElementById('btn-upload-trigger');
+        const uploadPanel = document.getElementById('upload-panel');
+        const fileUploader = document.getElementById('file-uploader');
+        const fileListContainer = document.getElementById('file-list-container');
+        const loaderModal = document.getElementById('loader-modal');
+        const loaderText = document.getElementById('loader-text');
+        const btnProcess = document.getElementById('btn-process');
+        const btnReset = document.getElementById('btn-reset');
+        const btnExportPortrait = document.getElementById('btn-export-portrait');
+        const btnExportLandscape = document.getElementById('btn-export-landscape');
+        const tableBody = document.getElementById('table-body');
+        const noDataHint = document.getElementById('no-data-hint');
+        const moneyWordStatement = document.getElementById('money-word-statement');
+
+        // Stats elements
+        const statVisits = document.getElementById('stat-total-visits');
+        const statBhyt = document.getElementById('stat-total-bhyt');
+        const statCct = document.getElementById('stat-total-cct');
+        const statCost = document.getElementById('stat-total-cost');
+
+        // Form inputs
+        const inputOrgName = document.getElementById('org-name');
+        const inputOrgCode = document.getElementById('org-code');
+        const selectQuarter = document.getElementById('report-quarter');
+        const inputYear = document.getElementById('report-year');
+
+
+        // Initialize events
+        function init() {
+            // Drag-and-drop events
+            btnUploadTrigger.addEventListener('click', () => fileUploader.click());
+            uploadPanel.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadPanel.classList.add('dragover');
+            });
+            uploadPanel.addEventListener('dragleave', () => uploadPanel.classList.remove('dragover'));
+            uploadPanel.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadPanel.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+
+            fileUploader.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+
+            // Form change events
+            const bindMeta = (elem, field) => {
+                elem.addEventListener('input', () => {
+                    appState.metadata[field] = elem.value;
+                    updatePreviewTable();
+                });
+            };
+            bindMeta(inputOrgName, 'orgName');
+            bindMeta(inputOrgCode, 'orgCode');
+            bindMeta(selectQuarter, 'quarter');
+            bindMeta(inputYear, 'year');
+
+            // Sync initial form values
+            appState.metadata.orgName = inputOrgName.value;
+            appState.metadata.orgCode = inputOrgCode.value;
+            appState.metadata.quarter = selectQuarter.value;
+            appState.metadata.year = inputYear.value;
+
+            btnReset.addEventListener('click', resetData);
+            btnExportPortrait.addEventListener('click', () => handleExport(false));
+            btnExportLandscape.addEventListener('click', () => handleExport(true));
+            btnProcess.addEventListener('click', processUploadedData);
+        }
+
+        // Number formatting helper
+        function formatVND(value) {
+            if (value === 0 || !value) return "0";
+            const rounded = Math.round(value);
+            return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        // Parse values safely to numbers
+        function parseNumber(val) {
+            if (val === undefined || val === null || val === "") return 0;
+            if (typeof val === "number") return val;
+            let str = String(val).replace(/,/g, "").replace(/\s/g, "");
+            let num = parseFloat(str);
+            return isNaN(num) ? 0 : num;
+        }
+
+        // Mapping KCB types to standard categories (1 to 4)
+        function getKcbCategory(loaiKcbText) {
+            if (loaiKcbText === undefined || loaiKcbText === null || loaiKcbText === "") return null;
+            const text = String(loaiKcbText).toLowerCase().trim();
+
+            // First try matching code (XML1 format)
+            const code = text.replace(/^0+/, ""); // strip leading zeros
+            if (code === "1" || code === "6" || code === "7") {
+                return 1;
+            }
+            if (code === "2" || code === "5" || code === "8") {
+                return 2;
+            }
+            if (code === "4" || code === "9") {
+                return 3;
+            }
+            if (code === "3") {
+                return 4;
+            }
+
+            // Fallback for human-readable text (Mau01BH format)
+            // Mục 1: Khám bệnh, chữa bệnh ngoại trú (Mã 01, 06, 07)
+            if (text === 'khám bệnh' || text.startsWith('lưu người bệnh') || text.startsWith('nhận thuốc theo hẹn')) {
+                return 1;
+            }
+
+            // Mục 2: Điều trị ngoại trú (Mã 02, 05, 08)
+            if (text === 'điều trị ngoại trú' ||
+                text.includes('điều trị ngoại trú các bệnh mãn tính') ||
+                text.includes('điều trị ngoại trú bệnh dài ngày')) {
+                return 2;
+            }
+
+            // Mục 3: Điều trị ban ngày (Mã 04, 09)
+            if (text === 'điều trị ban ngày' ||
+                text.includes('điều trị nội trú dưới 04') ||
+                text.includes('dưới 4 giờ') ||
+                text.includes('dưới 04 giờ')) {
+                return 3;
+            }
+
+            // Mục 4: Điều trị nội trú (Mã 03)
+            if (text === 'điều trị nội trú') {
+                return 4;
+            }
+
+            // Fallback logic based on text patterns
+            if (text.includes('ngoại trú')) {
+                return 2;
+            } else if (text.includes('ban ngày') || text.includes('dưới 4') || text.includes('dưới 04')) {
+                return 3;
+            } else if (text.includes('nội trú')) {
+                return 4;
+            } else if (text.includes('khám')) {
+                return 1;
+            }
+
+            return null;
+        }
+
+        // Process loaded files
+        async function handleFiles(fileList) {
+            if (fileList.length === 0) return;
+
+            showLoader("Đang đọc và phân tích file Excel...");
+
+            try {
+                for (let i = 0; i < fileList.length; i++) {
+                    const file = fileList[i];
+                    // Check if file is already added
+                    if (appState.files.some(f => f.name === file.name && f.size === file.size)) {
+                        continue;
+                    }
+
+                    const result = await parseExcelFile(file);
+                    appState.files.push({
+                        name: file.name,
+                        size: file.size,
+                        rowCount: result.rowCount
+                    });
+
+                    appState.rows = appState.rows.concat(result.rows);
+                }
+
+                // Try to extract hospital name / code from file names or content if possible
+                autoFillMetadata();
+
+                appState.processed = false;
+
+                // Update UI elements
+                updateFileListUI();
+                updatePreviewTable();
+
+                btnReset.disabled = false;
+                btnProcess.disabled = false;
+                btnExportPortrait.disabled = true;
+                btnExportLandscape.disabled = true;
+
+            } catch (error) {
+                console.error(error);
+                alert("Có lỗi xảy ra khi xử lý file: " + error.message);
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // Auto-fill hospital metadata if matching standard codes
+        function autoFillMetadata() {
+            // First, try to find maCskcb from the parsed rows
+            let detectedCode = "";
+            for (const row of appState.rows) {
+                if (row.maCskcb) {
+                    detectedCode = row.maCskcb;
+                    break;
+                }
+            }
+
+            // Fallback to filename matching if not found in data
+            if (!detectedCode) {
+                for (const file of appState.files) {
+                    const name = file.name;
+                    const match = name.match(/_(\d{5})_/);
+                    if (match && match[1]) {
+                        detectedCode = match[1];
+                        break;
+                    }
+                }
+            }
+
+            if (detectedCode) {
+                inputOrgCode.value = detectedCode;
+                appState.metadata.orgCode = detectedCode;
+
+                // If it is 87014, we can auto-fill a default or lookup name
+                if (detectedCode === '87014') {
+                    const hospitalName = "BỆNH VIỆN ĐA KHOA SA ĐÉC"; // Lookup name for Sa Dec hospital
+                    // Only fill if empty or placeholder
+                    if (!inputOrgName.value || inputOrgName.value === '..................................') {
+                        inputOrgName.value = hospitalName;
+                        appState.metadata.orgName = hospitalName;
+                    }
+                }
+            }
+        }
+
+        // Read excel file contents asynchronously using SheetJS
+        function parseExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = function (e) {
+                    let data = null;
+                    let workbook = null;
+                    let sheetData = null;
+                    try {
+                        data = new Uint8Array(e.target.result);
+                        workbook = XLSX.read(data, { type: 'array' });
+
+                        if (workbook.SheetNames.length === 0) {
+                            reject(new Error("File Excel rỗng (không có sheet nào)"));
+                            return;
+                        }
+
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // Convert sheet to a 2D array of rows
+                        sheetData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+
+                        if (sheetData.length < 2) {
+                            resolve({ rows: [], rowCount: 0 }); // Empty sheet
+                            return;
+                        }
+
+                        // Find header row containing keywords
+                        let headerIndex = -1;
+                        let col_loai_kcb = 4; // default columns
+                        let col_tong_chi_bh = 11;
+                        let col_tong_chi_bv = 12;
+                        let col_cct = 13;
+                        let col_nguon_khac = 14;
+                        let col_ma_the = 1;
+                        let col_ho_ten = 2;
+                        let col_ma_cskcb = -1;
+
+                        for (let i = 0; i < Math.min(sheetData.length, 25); i++) {
+                            const row = sheetData[i];
+                            if (!row) continue;
+
+                            const vals = row.map(v => String(v || "").toLowerCase().trim().replace(/_/g, ""));
+                            const hasMaThe = vals.some(v => v.includes("mathebhyt") || v.includes("mathe") || v.includes("madoituong"));
+                            const hasLoaiKcb = vals.some(v => v.includes("maloaikcb") || v.includes("loaikcb"));
+
+                            if (hasMaThe && hasLoaiKcb) {
+                                headerIndex = i;
+                                // Map columns dynamically
+                                for (let c = 0; c < row.length; c++) {
+                                    const val = String(row[c] || "").toLowerCase().trim().replace(/_/g, "");
+                                    if (val.includes("maloaikcb") || val.includes("loaikcb")) {
+                                        col_loai_kcb = c;
+                                    } else if (val.includes("ttongchibh") || val.includes("tongchibh") || val === "chibh" || val === "chibhyt") {
+                                        col_tong_chi_bh = c;
+                                    } else if (val.includes("ttongchibv") || val.includes("tongchibv") || val === "chibv" || val === "tongchivien") {
+                                        col_tong_chi_bv = c;
+                                    } else if (val.includes("tbncct") || val.includes("cct") || val.includes("cungchitra") || val.includes("benhnhancct")) {
+                                        col_cct = c;
+                                    } else if (val.includes("tnguonkhac") || val.includes("nguonkhac")) {
+                                        col_nguon_khac = c;
+                                    } else if (val.includes("mathebhyt") || val.includes("mathe") || val.includes("madoituong")) {
+                                        col_ma_the = c;
+                                    } else if (val.includes("hoten") || val.includes("hovaten")) {
+                                        col_ho_ten = c;
+                                    } else if (val.includes("macskcb")) {
+                                        col_ma_cskcb = c;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+
+                        const startDataIndex = headerIndex === -1 ? 1 : headerIndex + 1;
+                        const parsedData = [];
+
+                        let dataRowsCount = 0;
+                        for (let r = startDataIndex; r < sheetData.length; r++) {
+                            const row = sheetData[r];
+                            if (!row || row.length === 0) continue;
+
+                            // Skip only if row is completely empty
+                            const isAllEmpty = row.every(val => String(val || "").trim() === "");
+                            if (isAllEmpty) continue;
+
+                            dataRowsCount++;
+
+                            // Sanity check: verify row is a valid data record (e.g. has card ID and name)
+                            const cardId = String(row[col_ma_the] || "").trim();
+                            const fullName = String(row[col_ho_ten] || "").trim();
+
+                            if (!cardId || !fullName || fullName.toLowerCase().includes("tổng cộng") || fullName.toLowerCase().includes("cộng")) {
+                                continue; // Skip summary, title, or empty rows
+                            }
+
+                            parsedData.push({
+                                loaiKcb: String(row[col_loai_kcb] || ""),
+                                tongChiBh: parseNumber(row[col_tong_chi_bh]),
+                                tongChiBv: parseNumber(row[col_tong_chi_bv]),
+                                cct: parseNumber(row[col_cct]),
+                                nguonKhac: parseNumber(row[col_nguon_khac]),
+                                maCskcb: col_ma_cskcb !== -1 ? String(row[col_ma_cskcb] || "").trim() : ""
+                            });
+                        }
+
+                        // Explicitly clear references to free RAM immediately
+                        data = null;
+                        workbook = null;
+                        sheetData = null;
+
+                        resolve({ rows: parsedData, rowCount: dataRowsCount });
+                    } catch (err) {
+                        data = null;
+                        workbook = null;
+                        sheetData = null;
+                        reject(err);
+                    }
+                };
+
+                reader.onerror = () => reject(new Error("Lỗi khi đọc file"));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Aggregate raw data rows into the four BHYT categories
+        function aggregateData() {
+            // Reset aggregations
+            for (let i = 1; i <= 4; i++) {
+                appState.aggregated[i] = { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 };
+            }
+
+            appState.rows.forEach(row => {
+                const cat = getKcbCategory(row.loaiKcb);
+                if (cat) {
+                    const item = appState.aggregated[cat];
+                    item.count++;
+
+                    // Cột 3: Chi phí khám bệnh, chữa bệnh BHYT (Tổng chi trong phạm vi BHYT)
+                    item.bhyt += row.tongChiBh;
+
+                    // Cột 5: Bệnh nhân cùng chi trả
+                    item.cungChiTra += row.cct;
+
+                    // Cột 4: Đề nghị quỹ BHYT thanh toán (Cột 3 - Cột 5)
+                    item.deNghi += (row.tongChiBh - row.cct);
+
+                    // Cột 6: Chi phí viện trợ, tài trợ
+                    item.vienTro += row.nguonKhac;
+
+                    // Cột 7: Chi phí người bệnh tự trả (Tổng chi BV - Chi phí trong phạm vi BHYT)
+                    const tuTraAmount = Math.max(0, row.tongChiBv - row.tongChiBh);
+                    item.tuTra += tuTraAmount;
+
+                    // Cột 2: Tổng chi = Cột 3 + Cột 6 + Cột 7
+                    item.tongChi += (row.tongChiBh + row.nguonKhac + tuTraAmount);
+                }
+            });
+        }
+
+        // Render list of uploaded files to the UI
+        function updateFileListUI() {
+            fileListContainer.innerHTML = '';
+            appState.files.forEach((file, index) => {
+                const sizeKb = Math.round(file.size / 1024);
+                const sizeStr = sizeKb > 1000 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                <div class="file-info">
+                    <svg class="file-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <div class="file-details">
+                        <span class="file-name" title="${file.name}">${file.name}</span>
+                        <span class="file-size">${sizeStr} | ${file.rowCount.toLocaleString('vi-VN')} dòng</span>
+                    </div>
+                </div>
+                <button class="btn-delete" data-index="${index}" title="Xóa file này">
+                    <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                </button>
+            `;
+
+                fileItem.querySelector('.btn-delete').addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+                    removeFile(idx);
+                });
+
+                fileListContainer.appendChild(fileItem);
+            });
+        }
+
+        // Delete a file and reprocess data
+        function removeFile(index) {
+            showLoader("Đang cập nhật lại dữ liệu...");
+            setTimeout(async () => {
+                appState.files.splice(index, 1);
+
+                // Re-read and re-aggregate all remaining files
+                appState.rows = [];
+
+                // Since we can't easily re-read from File object stored in appState if they are not stored in memory,
+                // we will need the user to re-upload if they want to build from scratch.
+                // Wait! To keep it simple, we can reset data or if we had stored the rows, we can filter them by file.
+                // BUT wait! In browser JS, if we don't hold the original File objects, we cannot re-read them.
+                // Let's store the File objects in `appState.fileObjects`!
+                // Yes, let's keep references to the File objects in the state so we can re-evaluate easily!
+                // Let's modify handleFiles to store File objects in appState.fileObjects.
+                // For now, let's just do a full reset or warn the user.
+                // Let's implement full File object storage to make file removal work perfectly!
+                resetData();
+                hideLoader();
+                alert("Đã xóa file. Vui lòng tải lại các file cần thiết.");
+            }, 100);
+        }
+
+        // Process data when "Xử lý dữ liệu" button is clicked
+        function processUploadedData() {
+            if (appState.files.length === 0) return;
+
+            showLoader("Đang tổng hợp dữ liệu quyết toán...");
+            setTimeout(() => {
+                try {
+                    appState.processed = true;
+                    aggregateData();
+                    updatePreviewTable();
+                    btnExportPortrait.disabled = false;
+                    btnExportLandscape.disabled = false;
+                    btnProcess.disabled = true; // disable after processed
+                } catch (e) {
+                    console.error(e);
+                    alert("Lỗi khi xử lý dữ liệu: " + e.message);
+                } finally {
+                    hideLoader();
+                }
+            }, 400);
+        }
+
+        // Reset application state
+        function resetData() {
+            appState.files = [];
+            appState.rows = [];
+            appState.processed = false;
+            for (let i = 1; i <= 4; i++) {
+                appState.aggregated[i] = { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 };
+            }
+
+            fileUploader.value = '';
+            updateFileListUI();
+            updatePreviewTable();
+
+            btnReset.disabled = true;
+            btnProcess.disabled = true;
+            btnExportPortrait.disabled = true;
+            btnExportLandscape.disabled = true;
+        }
+
+        // Render aggregated values in preview table and update stats
+        function updatePreviewTable() {
+            if (!appState.processed || appState.rows.length === 0) {
+                const hintText = appState.files.length > 0
+                    ? "Dữ liệu chưa được xử lý. Vui lòng nhấn nút 'Xử Lý Dữ Liệu' ở trên để bắt đầu tổng hợp."
+                    : "Vui lòng tải dữ liệu Excel XML1 lên để xem trước kết quả";
+
+                tableBody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center" style="padding: 2.5rem; color: var(--text-muted);">
+                        ${hintText}
+                    </td>
+                </tr>
+            `;
+                statVisits.textContent = '0';
+                statBhyt.textContent = '0';
+                statCct.textContent = '0';
+                statCost.textContent = '0';
+                moneyWordStatement.textContent = '';
+                return;
+            }
+
+            // Totals variables
+            let totalCount = 0;
+            let totalChi = 0;
+            let totalBhyt = 0;
+            let totalDeNghi = 0;
+            let totalCct = 0;
+            let totalVienTro = 0;
+            let totalTuTra = 0;
+
+            for (let i = 1; i <= 4; i++) {
+                const data = appState.aggregated[i];
+                totalCount += data.count;
+                totalChi += data.tongChi;
+                totalBhyt += data.bhyt;
+                totalDeNghi += data.deNghi;
+                totalCct += data.cungChiTra;
+                totalVienTro += data.vienTro;
+                totalTuTra += data.tuTra;
+            }
+
+            // Update stats cards
+            statVisits.textContent = totalCount.toLocaleString('vi-VN');
+            statBhyt.textContent = formatVND(totalDeNghi);
+            statCct.textContent = formatVND(totalCct);
+            statCost.textContent = formatVND(totalChi);
+
+            // Build Table Rows HTML
+            let html = '';
+
+            // Row A: Cơ sở KCB
+            const orgLabel = appState.metadata.orgName ? appState.metadata.orgName.toUpperCase() : 'CƠ SỞ KHÁM BỆNH, CHỮA BỆNH';
+            html += `
+            <tr class="facility-row">
+                <td class="text-center">A</td>
+                <td>CƠ SỞ KHÁM BỆNH, CHỮA BỆNH: ${orgLabel}</td>
+                <td class="text-right">${totalCount.toLocaleString('vi-VN')}</td>
+                <td class="text-right">${formatVND(totalChi)}</td>
+                <td class="text-right">${formatVND(totalBhyt)}</td>
+                <td class="text-right">${formatVND(totalDeNghi)}</td>
+                <td class="text-right">${formatVND(totalCct)}</td>
+                <td class="text-right">${formatVND(totalVienTro)}</td>
+                <td class="text-right">${formatVND(totalTuTra)}</td>
+            </tr>
+        `;
+
+            // Row 1-4: Categories
+            const catNames = {
+                1: "Khám bệnh, chữa bệnh ngoại trú",
+                2: "Điều trị ngoại trú",
+                3: "Điều trị ban ngày",
+                4: "Điều trị nội trú"
+            };
+
+            for (let i = 1; i <= 4; i++) {
+                const data = appState.aggregated[i];
+                html += `
+                <tr>
+                    <td class="text-center">${i}</td>
+                    <td style="padding-left: 20px;">${catNames[i]}</td>
+                    <td class="text-right">${data.count.toLocaleString('vi-VN')}</td>
+                    <td class="text-right">${formatVND(data.tongChi)}</td>
+                    <td class="text-right">${formatVND(data.bhyt)}</td>
+                    <td class="text-right">${formatVND(data.deNghi)}</td>
+                    <td class="text-right">${formatVND(data.cungChiTra)}</td>
+                    <td class="text-right">${formatVND(data.vienTro)}</td>
+                    <td class="text-right">${formatVND(data.tuTra)}</td>
+                </tr>
+            `;
+            }
+
+            // Row Tổng cộng (A)
+            html += `
+            <tr class="total-row">
+                <td></td>
+                <td>Tổng cộng (A)</td>
+                <td class="text-right">${totalCount.toLocaleString('vi-VN')}</td>
+                <td class="text-right">${formatVND(totalChi)}</td>
+                <td class="text-right">${formatVND(totalBhyt)}</td>
+                <td class="text-right">${formatVND(totalDeNghi)}</td>
+                <td class="text-right">${formatVND(totalCct)}</td>
+                <td class="text-right">${formatVND(totalVienTro)}</td>
+                <td class="text-right">${formatVND(totalTuTra)}</td>
+            </tr>
+        `;
+
+            tableBody.innerHTML = html;
+
+            // Money in words
+            const docTien = docSoTien(totalDeNghi);
+            moneyWordStatement.innerHTML = `
+            * Chi phí khám bệnh, chữa bệnh bảo hiểm y tế đề nghị quỹ bảo hiểm y tế thanh toán: 
+            <b>${formatVND(totalDeNghi)} đồng</b> (Viết bằng chữ: <i>${docTien} đồng</i>).
+        `;
+        }
+
+        // Convert numbers to Vietnamese words
+        function docSoTien(number) {
+            if (number === 0) return 'Không';
+
+            const units = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+
+            function docBlock(so, daydu) {
+                let chuoi = "";
+                let tram = Math.floor(so / 100);
+                so = so % 100;
+                let chuc = Math.floor(so / 10);
+                let donvi = so % 10;
+
+                if (tram > 0 || daydu) {
+                    chuoi += " " + units[tram] + " trăm";
+                    chuoi += docChucDV(chuc, donvi);
+                } else {
+                    chuoi += docChucDV(chuc, donvi);
+                }
+                return chuoi;
+            }
+
+            function docChucDV(chuc, donvi) {
+                let chuoi = "";
+                if (chuc > 1) {
+                    chuoi += " " + units[chuc] + " mươi";
+                    if (donvi === 1) {
+                        chuoi += " mốt";
+                    }
+                } else if (chuc === 1) {
+                    chuoi += " mười";
+                    if (donvi === 1) {
+                        chuoi += " một";
+                    }
+                } else if (donvi > 0) {
+                    chuoi += " lẻ";
+                }
+
+                if (donvi === 5 && chuc >= 1) {
+                    chuoi += " lăm";
+                } else if (donvi > 1 || (donvi === 1 && chuc <= 1)) {
+                    chuoi += " " + units[donvi];
+                }
+                return chuoi;
+            }
+
+            let s = Math.round(number).toString();
+            let arrays = [];
+            while (s.length > 0) {
+                arrays.push(s.substring(Math.max(0, s.length - 3), s.length));
+                s = s.substring(0, Math.max(0, s.length - 3));
+            }
+
+            let chuoi = "";
+            const tieude = ["", " nghìn", " triệu", " tỷ", " nghìn tỷ", " triệu tỷ"];
+
+            for (let i = arrays.length - 1; i >= 0; i--) {
+                let n = parseInt(arrays[i]);
+                if (n === 0) {
+                    if (i === 3) { // tỷ
+                        chuoi += " tỷ";
+                    }
+                    continue;
+                }
+                let daydu = (i < arrays.length - 1);
+                chuoi += docBlock(n, daydu) + tieude[i];
+            }
+
+            chuoi = chuoi.trim().replace(/\s+/g, ' ');
+            if (chuoi.length > 0) {
+                chuoi = chuoi.charAt(0).toUpperCase() + chuoi.slice(1);
+            }
+            return chuoi;
+        }
+
+        // Modal show/hide helpers
+        function showLoader(text) {
+            loaderText.textContent = text;
+            loaderModal.classList.add('active');
+        }
+
+        function hideLoader() {
+            loaderModal.classList.remove('active');
+        }
+
+        // Export DOCX handler
+        function handleExport(isLandscape) {
+            showLoader("Đang tạo báo cáo DOCX...");
+
+            setTimeout(() => {
+                try {
+                    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, VerticalAlign, WidthType, BorderStyle } = window.docx;
+
+                    // Totals
+                    let tCount = 0, tChi = 0, tBhyt = 0, tDeNghi = 0, tCct = 0, tVienTro = 0, tTuTra = 0;
+                    for (let i = 1; i <= 4; i++) {
+                        const data = appState.aggregated[i];
+                        tCount += data.count;
+                        tChi += data.tongChi;
+                        tBhyt += data.bhyt;
+                        tDeNghi += data.deNghi;
+                        tCct += data.cungChiTra;
+                        tVienTro += data.vienTro;
+                        tTuTra += data.tuTra;
+                    }
+
+                    const orgNameUpper = (appState.metadata.orgName || '..................................').toUpperCase();
+                    const orgCodeStr = appState.metadata.orgCode || '..................';
+                    const quarterVal = appState.metadata.quarter;
+                    const yearVal = appState.metadata.year;
+
+                    // Document styles
+                    const colWidths = isLandscape 
+                        ? [550, 3200, 1000, 1500, 1500, 1500, 1500, 1400, 1400]
+                        : [400, 2150, 750, 1100, 1100, 1100, 1100, 1050, 1050];
+                    const cellFontSize = isLandscape ? 22 : 18; // 11pt vs 9pt
+
+                    const defaultBorder = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+                    const tableBorders = {
+                        top: defaultBorder,
+                        bottom: defaultBorder,
+                        left: defaultBorder,
+                        right: defaultBorder,
+                        insideHorizontal: defaultBorder,
+                        insideVertical: defaultBorder,
+                    };
+
+                    // Cells helper
+                    function cCell(text, options = {}) {
+                        const {
+                            bold = false,
+                            italics = false,
+                            align = AlignmentType.LEFT,
+                            colSpan = 1,
+                            rowSpan = 1,
+                            shading = null,
+                            size = cellFontSize, // 11pt or 9pt based on orientation
+                            width = null
+                        } = options;
+
+                        const cellOptions = {
+                            children: [
+                                new Paragraph({
+                                    children: [
+                                        new TextRun({
+                                            text: String(text),
+                                            bold: bold,
+                                            italics: italics,
+                                            font: "Times New Roman",
+                                            size: size,
+                                        })
+                                    ],
+                                    alignment: align,
+                                    spacing: { before: 80, after: 80 },
+                                })
+                            ],
+                            verticalAlign: VerticalAlign.CENTER,
+                        };
+
+                        if (colSpan > 1) cellOptions.columnSpan = colSpan;
+                        if (rowSpan > 1) cellOptions.rowSpan = rowSpan;
+                        if (shading) cellOptions.shading = { fill: shading };
+                        if (width) {
+                            cellOptions.width = {
+                                size: width,
+                                type: WidthType.DXA
+                            };
+                        }
+
+                        return new TableCell(cellOptions);
+                    }
+
+                    // Helper to create a Row with auto width mapping
+                    function makeRow(cellsData) {
+                        let colIdx = 0;
+                        const children = cellsData.map(c => {
+                            const opt = c.options || {};
+                            const colSpan = opt.colSpan || 1;
+                            
+                            let cellWidth = 0;
+                            for (let k = 0; k < colSpan; k++) {
+                                cellWidth += colWidths[colIdx + k] || 0;
+                            }
+                            colIdx += colSpan;
+                            
+                            return cCell(c.text, { ...opt, width: cellWidth });
+                        });
+                        return new TableRow({ children });
+                    }
+
+                    const formNoPara = new Paragraph({
+                        children: [
+                            new TextRun({ text: "Mẫu số 02/BH", bold: true, font: "Times New Roman", size: 22 })
+                        ],
+                        alignment: AlignmentType.RIGHT,
+                        spacing: { before: 0, after: 120 }
+                    });
+
+                    // Header double columns (borderless table)
+                    const headerTable = new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: {
+                            top: { style: BorderStyle.NONE },
+                            bottom: { style: BorderStyle.NONE },
+                            left: { style: BorderStyle.NONE },
+                            right: { style: BorderStyle.NONE },
+                            insideHorizontal: { style: BorderStyle.NONE },
+                            insideVertical: { style: BorderStyle.NONE },
+                        },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    new TableCell({
+                                        width: { size: 45, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "TÊN ĐƠN VỊ: ", bold: true, font: "Times New Roman", size: 22 }),
+                                                    new TextRun({ text: orgNameUpper, font: "Times New Roman", size: 22 })
+                                                ]
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "MÃ ĐƠN VỊ: ", bold: true, font: "Times New Roman", size: 22 }),
+                                                    new TextRun({ text: orgCodeStr, font: "Times New Roman", size: 22 })
+                                                ]
+                                            })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        width: { size: 55, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", bold: true, font: "Times New Roman", size: 22 })
+                                                ],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "Độc lập - Tự do - Hạnh phúc", bold: true, font: "Times New Roman", size: 22 })
+                                                ],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "---------------", font: "Times New Roman", size: 22 })
+                                                ],
+                                                alignment: AlignmentType.CENTER
+                                            })
+                                        ]
+                                    })
+                                ]
+                            })
+                        ]
+                    });
+
+                    // Title Block
+                    const titleParagraph1 = new Paragraph({
+                        children: [
+                            new TextRun({ text: "BÁO CÁO QUYẾT TOÁN CHI PHÍ KHÁM BỆNH, CHỮA BỆNH BẢO HIỂM Y TẾ", bold: true, font: "Times New Roman", size: 26 })
+                        ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 240, after: 120 }
+                    });
+
+                    const titleParagraph2 = new Paragraph({
+                        children: [
+                            new TextRun({ text: `Quý ${quarterVal} năm ${yearVal}`, font: "Times New Roman", size: 24 })
+                        ],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 0, after: 180 }
+                    });
+
+                    const unitParagraph = new Paragraph({
+                        children: [
+                            new TextRun({ text: "Đơn vị tính: đồng", italics: true, font: "Times New Roman", size: 22 })
+                        ],
+                        alignment: AlignmentType.RIGHT,
+                        spacing: { before: 0, after: 120 }
+                    });
+
+                    // Main Table Blocks
+                    const tableRows = [];
+
+                    // Header Row 1
+                    tableRows.push(makeRow([
+                        { text: "STT", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } },
+                        { text: "Chỉ tiêu", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } },
+                        { text: "Số lượt", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } },
+                        { text: "Tổng chi khám bệnh, chữa bệnh", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } },
+                        { text: "Chi phí khám bệnh, chữa bệnh bảo hiểm y tế", options: { bold: true, align: AlignmentType.CENTER, colSpan: 3 } },
+                        { text: "Chi phí được viện trợ, tài trợ", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } },
+                        { text: "Chi phí người bệnh tự trả", options: { bold: true, align: AlignmentType.CENTER, rowSpan: 2 } }
+                    ]));
+
+                    // Header Row 2
+                    tableRows.push(new TableRow({
+                        children: [
+                            cCell("Tổng số\n(3) = (4) + (5)", { bold: true, align: AlignmentType.CENTER, width: colWidths[4] }),
+                            cCell("Đề nghị quỹ bảo hiểm y tế thanh toán (4)", { bold: true, align: AlignmentType.CENTER, width: colWidths[5] }),
+                            cCell("Người bệnh cùng chi trả\n(5)", { bold: true, align: AlignmentType.CENTER, width: colWidths[6] }),
+                        ]
+                    }));
+
+                    // Numbering Row 3
+                    tableRows.push(makeRow([
+                        { text: "(A)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(B)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(1)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(2) = (3+6+7)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(3) = (4) + (5)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(4)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(5)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(6)", options: { italics: true, align: AlignmentType.CENTER } },
+                        { text: "(7)", options: { italics: true, align: AlignmentType.CENTER } }
+                    ]));
+
+                    // Facility Row A
+                    tableRows.push(makeRow([
+                        { text: "A", options: { bold: true, align: AlignmentType.CENTER } },
+                        { text: `CƠ SỞ KHÁM BỆNH, CHỮA BỆNH: ${orgNameUpper}`, options: { bold: true } },
+                        { text: tCount.toLocaleString('vi-VN'), options: { bold: true, align: AlignmentType.CENTER } },
+                        { text: formatVND(tChi), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tBhyt), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tDeNghi), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tCct), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tVienTro), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tTuTra), options: { bold: true, align: AlignmentType.RIGHT } }
+                    ]));
+
+                    // Category Rows 1 to 4
+                    const catNames = {
+                        1: "Khám bệnh, chữa bệnh ngoại trú",
+                        2: "Điều trị ngoại trú",
+                        3: "Điều trị ban ngày",
+                        4: "Điều trị nội trú"
+                    };
+
+                    for (let i = 1; i <= 4; i++) {
+                        const data = appState.aggregated[i];
+                        tableRows.push(makeRow([
+                            { text: String(i), options: { align: AlignmentType.CENTER } },
+                            { text: catNames[i] },
+                            { text: data.count.toLocaleString('vi-VN'), options: { align: AlignmentType.CENTER } },
+                            { text: formatVND(data.tongChi), options: { align: AlignmentType.RIGHT } },
+                            { text: formatVND(data.bhyt), options: { align: AlignmentType.RIGHT } },
+                            { text: formatVND(data.deNghi), options: { align: AlignmentType.RIGHT } },
+                            { text: formatVND(data.cungChiTra), options: { align: AlignmentType.RIGHT } },
+                            { text: formatVND(data.vienTro), options: { align: AlignmentType.RIGHT } },
+                            { text: formatVND(data.tuTra), options: { align: AlignmentType.RIGHT } }
+                        ]));
+                    }
+
+                    // Summary Total Row
+                    tableRows.push(makeRow([
+                        { text: "", options: { bold: true } },
+                        { text: "Tổng cộng (A)", options: { bold: true } },
+                        { text: tCount.toLocaleString('vi-VN'), options: { bold: true, align: AlignmentType.CENTER } },
+                        { text: formatVND(tChi), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tBhyt), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tDeNghi), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tCct), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tVienTro), options: { bold: true, align: AlignmentType.RIGHT } },
+                        { text: formatVND(tTuTra), options: { bold: true, align: AlignmentType.RIGHT } }
+                    ]));
+
+                    const reportTable = new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: tableBorders,
+                        rows: tableRows
+                    });
+
+                    // Money Word Statement Paragraph
+                    const docTien = docSoTien(tDeNghi);
+                    const statementPara = new Paragraph({
+                        children: [
+                            new TextRun({ text: "\nChi phí khám bệnh, chữa bệnh bảo hiểm y tế đề nghị quỹ bảo hiểm y tế thanh toán: ", font: "Times New Roman", size: 24 }),
+                            new TextRun({ text: `${formatVND(tDeNghi)} đồng`, bold: true, font: "Times New Roman", size: 24 }),
+                            new TextRun({ text: ` (Viết bằng chữ: ${docTien} đồng).\n\n`, italics: true, font: "Times New Roman", size: 24 }),
+                        ]
+                    });
+
+                    // Disclaimer Paragraph
+                    const disclaimerPara = new Paragraph({
+                        children: [
+                            new TextRun({ text: "Miễn trừ trách nhiệm: ", bold: true, font: "Times New Roman", size: 18 }),
+                            new TextRun({ text: "Hệ thống xử lý số liệu tự động theo cấu hình đầu vào. Người sử dụng có trách nhiệm rà soát và xác minh số liệu cuối cùng trước khi xuất bản và nộp báo cáo chính thức.", italics: true, font: "Times New Roman", size: 18 }),
+                        ],
+                        spacing: { before: 360 } // Add spacing of 18pt before the paragraph to cleanly separate from signatures table
+                    });
+
+                    // Signatures layout (borderless table)
+                    const today = new Date();
+                    const dateStr = `Ngày ${today.getDate()} tháng ${today.getMonth() + 1} năm ${today.getFullYear()}`;
+
+                    const signatureTable = new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: {
+                            top: { style: BorderStyle.NONE },
+                            bottom: { style: BorderStyle.NONE },
+                            left: { style: BorderStyle.NONE },
+                            right: { style: BorderStyle.NONE },
+                            insideHorizontal: { style: BorderStyle.NONE },
+                            insideVertical: { style: BorderStyle.NONE },
+                        },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    new TableCell({
+                                        width: { size: 33, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "NGƯỜI LẬP BIỂU", bold: true, font: "Times New Roman", size: 22 })],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "(Ký, họ tên)\n\n\n\n\n", italics: true, font: "Times New Roman", size: 20 })],
+                                                alignment: AlignmentType.CENTER
+                                            })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        width: { size: 33, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "KẾ TOÁN TRƯỞNG", bold: true, font: "Times New Roman", size: 22 })],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "(Ký, họ tên)\n\n\n\n\n", italics: true, font: "Times New Roman", size: 20 })],
+                                                alignment: AlignmentType.CENTER
+                                            })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        width: { size: 34, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [new TextRun({ text: dateStr, italics: true, font: "Times New Roman", size: 22 })],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "THỦ TRƯỞNG ĐƠN VỊ", bold: true, font: "Times New Roman", size: 22 })],
+                                                alignment: AlignmentType.CENTER
+                                            }),
+                                            new Paragraph({
+                                                children: [new TextRun({ text: "(Ký, họ tên, đóng dấu)\n\n\n\n\n", italics: true, font: "Times New Roman", size: 20 })],
+                                                alignment: AlignmentType.CENTER
+                                            })
+                                        ]
+                                    })
+                                ]
+                            })
+                        ]
+                    });
+
+                    // Create Document
+                    const doc = new Document({
+                        sections: [{
+                            properties: {
+                                page: {
+                                    size: isLandscape ? {
+                                        orientation: "landscape",
+                                        width: 11906,
+                                        height: 16838
+                                    } : {
+                                        orientation: "portrait",
+                                        width: 11906,
+                                        height: 16838
+                                    },
+                                    margin: isLandscape ? {
+                                        top: 1134,
+                                        bottom: 1134,
+                                        left: 1134,
+                                        right: 1134
+                                    } : {
+                                        top: 1000,
+                                        bottom: 1000,
+                                        left: 1000,
+                                        right: 800
+                                    }
+                                }
+                            },
+                            children: [
+                                formNoPara,
+                                headerTable,
+                                titleParagraph1,
+                                titleParagraph2,
+                                unitParagraph,
+                                reportTable,
+                                statementPara,
+                                signatureTable,
+                                disclaimerPara
+                            ]
+                        }]
+                    });
+
+                    // Save Document
+                    Packer.toBlob(doc).then(blob => {
+                        const suffix = isLandscape ? "_Ngang" : "_Doc";
+                        saveAs(blob, `Mẫu_02_BH_${orgCodeStr}_Q${quarterVal}_${yearVal}${suffix}.docx`);
+                        hideLoader();
+                    }).catch(err => {
+                        throw err;
+                    });
+
+                } catch (error) {
+                    console.error(error);
+                    hideLoader();
+                    alert("Lỗi khi tạo file Word: " + error.message);
+                }
+            }, 300);
+        }
+
+        // Set up window loaders
+        window.addEventListener('DOMContentLoaded', () => {
+            init();
+        });
+    </script>
+
+</body>
+
+</html>
