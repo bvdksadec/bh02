@@ -1314,8 +1314,14 @@
                                         col_cct = c;
                                     } else if (val.includes("tnguonkhac") || val.includes("nguonkhac")) {
                                         col_nguon_khac = c;
-                                    } else if (val.includes("mathebhyt") || val.includes("mathe") || val.includes("madoituong")) {
+                                    } else if (val.includes("mathebhyt") || val.includes("mathe")) {
                                         col_ma_the = c;
+                                    } else if (val.includes("madoituong")) {
+                                        // Only use madoituong if col_ma_the is not a card ID column
+                                        const hasRealCardIdCol = vals.some(v => v.includes("mathebhyt") || v.includes("mathe"));
+                                        if (!hasRealCardIdCol) {
+                                            col_ma_the = c;
+                                        }
                                     } else if (val.includes("hoten") || val.includes("hovaten")) {
                                         col_ho_ten = c;
                                     } else if (val.includes("macskcb")) {
@@ -1344,8 +1350,8 @@
                             const cardId = String(row[col_ma_the] || "").trim();
                             const fullName = String(row[col_ho_ten] || "").trim();
 
-                            if (!cardId || !fullName || fullName.toLowerCase().includes("tổng cộng") || fullName.toLowerCase().includes("cộng")) {
-                                continue; // Skip summary, title, or empty rows
+                            if (!cardId || !fullName) {
+                                continue; // Skip empty rows or headers
                             }
 
                             parsedData.push({
