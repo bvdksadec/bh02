@@ -867,6 +867,22 @@
 
             </div>
 
+            <!-- PROCESSING LOG SECTION -->
+            <div class="panel" id="log-panel" style="display: none; padding: 1rem 1.15rem;">
+                <h2 class="panel-title" style="margin-bottom: 0.5rem; padding-bottom: 0.35rem; font-size: 1.125rem; display: flex; align-items: center; gap: 0.4rem;">
+                    <svg class="file-icon" style="stroke: var(--primary); width: 16px; height: 16px; margin-bottom: 0;" viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    Nhật Ký Xử Lý Chi Tiết
+                </h2>
+                <div id="log-container" style="font-family: monospace; font-size: 0.825rem; background: rgba(5, 8, 20, 0.8); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem 1rem; color: #a1b0cb; max-height: 200px; overflow-y: auto; line-height: 1.5; white-space: pre-wrap;">
+                </div>
+            </div>
+
             <!-- BOTTOM SECTION: Preview Dashboard & Table (Full Width) -->
             <div class="panel">
                 <h2 class="panel-title" id="panel-dashboard-title">
@@ -992,9 +1008,18 @@
 
     <!-- Loader Modal -->
     <div class="modal" id="loader-modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 480px; width: 90%;">
             <div class="spinner"></div>
             <div class="modal-text" id="loader-text">Đang xử lý dữ liệu...</div>
+            <div id="loader-progress-container" style="width: 100%; display: none; margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.775rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+                    <span id="loader-file-info">Đang đọc file...</span>
+                    <span id="loader-pct">0%</span>
+                </div>
+                <div style="width: 100%; background: rgba(255, 255, 255, 0.08); border-radius: 4px; overflow: hidden; height: 8px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                    <div id="loader-progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary) 0%, #3b82f6 100%); transition: width 0.1s ease;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1002,7 +1027,6 @@
         // State management
         const appState = {
             files: [],
-            rows: [], // Consolidated raw data rows from all files
             processed: false, // Track if data has been processed
             aggregated: {
                 1: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
@@ -1028,6 +1052,14 @@
         const fileListContainer = document.getElementById('file-list-container');
         const loaderModal = document.getElementById('loader-modal');
         const loaderText = document.getElementById('loader-text');
+        
+        // Progress & Log Elements
+        const loaderProgressContainer = document.getElementById('loader-progress-container');
+        const loaderProgressBar = document.getElementById('loader-progress-bar');
+        const loaderPct = document.getElementById('loader-pct');
+        const loaderFileInfo = document.getElementById('loader-file-info');
+        const logPanel = document.getElementById('log-panel');
+        const logContainer = document.getElementById('log-container');
         const btnProcess = document.getElementById('btn-process');
         const btnReset = document.getElementById('btn-reset');
         const btnExportPortrait = document.getElementById('btn-export-portrait');
@@ -1108,6 +1140,16 @@
             return isNaN(num) ? 0 : num;
         }
 
+        // Check if value is a valid numeric expression (or empty/undefined which is treated as 0)
+        function isValidNumber(val) {
+            if (val === undefined || val === null || val === "") return true;
+            if (typeof val === "number") return !isNaN(val);
+            let str = String(val).replace(/,/g, "").replace(/\s/g, "");
+            if (str === "") return true;
+            let num = parseFloat(str);
+            return !isNaN(num) && isFinite(num);
+        }
+
         // Mapping KCB types to standard categories (1 to 4)
         function getKcbCategory(loaiKcbText) {
             if (loaiKcbText === undefined || loaiKcbText === null || loaiKcbText === "") return null;
@@ -1172,27 +1214,77 @@
         async function handleFiles(fileList) {
             if (fileList.length === 0) return;
 
-            showLoader("Đang đọc và phân tích file Excel...");
+            // Reset and show progress in loader modal
+            loaderProgressContainer.style.display = 'block';
+            loaderProgressBar.style.width = '0%';
+            loaderPct.textContent = '0%';
+            loaderFileInfo.textContent = `Chuẩn bị đọc ${fileList.length} file...`;
+            showLoader("Đang đọc và phân tích dữ liệu...");
+
+            const startTime = performance.now();
+            let totalRows = 0;
+            let totalSuccess = 0;
+            let totalErrors = 0;
 
             try {
                 for (let i = 0; i < fileList.length; i++) {
                     const file = fileList[i];
+                    
+                    // Update progress UI
+                    const percent = Math.round((i / fileList.length) * 100);
+                    loaderProgressBar.style.width = percent + '%';
+                    loaderPct.textContent = percent + '%';
+                    loaderFileInfo.textContent = `Đang đọc: ${file.name} (${i + 1}/${fileList.length} file)`;
+                    
+                    // Yield control to let UI redraw
+                    await new Promise(r => setTimeout(r, 60));
+
                     // Check if file is already added
                     if (appState.files.some(f => f.name === file.name && f.size === file.size)) {
                         continue;
                     }
 
-                    const result = await parseExcelFile(file);
-                    appState.files.push({
-                        name: file.name,
-                        size: file.size,
-                        rowCount: result.rowCount
-                    });
+                    try {
+                        const result = await parseExcelFile(file);
+                        appState.files.push({
+                            name: file.name,
+                            size: file.size,
+                            rowCount: result.rowCount,
+                            aggregated: result.aggregated,
+                            maCskcb: result.maCskcb,
+                            successCount: result.successCount,
+                            errorCount: result.errorCount,
+                            errors: result.errors,
+                            status: 'success'
+                        });
 
-                    appState.rows = appState.rows.concat(result.rows);
+                        totalRows += result.rowCount;
+                        totalSuccess += result.successCount;
+                        totalErrors += result.errorCount;
+                    } catch (fileErr) {
+                        console.error(`Error parsing file ${file.name}:`, fileErr);
+                        appState.files.push({
+                            name: file.name,
+                            size: file.size,
+                            rowCount: 0,
+                            aggregated: null,
+                            maCskcb: '',
+                            successCount: 0,
+                            errorCount: 0,
+                            errors: {},
+                            status: 'error',
+                            errorMessage: fileErr.message
+                        });
+                    }
                 }
 
-                // Try to extract hospital name / code from file names or content if possible
+                // Final progress update
+                loaderProgressBar.style.width = '100%';
+                loaderPct.textContent = '100%';
+                loaderFileInfo.textContent = 'Hoàn thành đọc tất cả các file!';
+                await new Promise(r => setTimeout(r, 200));
+
+                // Auto-fill hospital metadata if matching standard codes
                 autoFillMetadata();
 
                 appState.processed = false;
@@ -1200,6 +1292,10 @@
                 // Update UI elements
                 updateFileListUI();
                 updatePreviewTable();
+                
+                // Write processing logs
+                const duration = ((performance.now() - startTime) / 1000).toFixed(1);
+                writeProcessingLogs(duration);
 
                 btnReset.disabled = false;
                 btnProcess.disabled = false;
@@ -1208,19 +1304,67 @@
 
             } catch (error) {
                 console.error(error);
-                alert("Có lỗi xảy ra khi xử lý file: " + error.message);
+                alert("Có lỗi hệ thống xảy ra khi xử lý các file: " + error.message);
             } finally {
                 hideLoader();
+                // Reset progress UI inside loader modal
+                loaderProgressContainer.style.display = 'none';
             }
+        }
+
+        // Write detailed processing logs to the log panel
+        function writeProcessingLogs(duration = null) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('vi-VN');
+
+            let totalRows = 0;
+            let totalSuccess = 0;
+            let totalErrors = 0;
+
+            appState.files.forEach(f => {
+                totalRows += f.rowCount;
+                totalSuccess += f.successCount;
+                totalErrors += f.errorCount;
+            });
+
+            let html = `Cập nhật dữ liệu lúc <b>${timeStr}</b>`;
+            if (duration !== null) {
+                html += ` (Thời gian chạy: <b>${duration} giây</b>)`;
+            }
+            html += `<br>Tổng số dòng quét từ Excel: <b>${totalRows.toLocaleString('vi-VN')}</b> dòng (Thành công: <span style="color: var(--primary)">${totalSuccess.toLocaleString('vi-VN')}</span>, Bỏ qua: <span style="color: #ef4444">${totalErrors.toLocaleString('vi-VN')}</span>)<br>`;
+            html += `<br><b>Chi tiết trạng thái từng file:</b><br>`;
+
+            appState.files.forEach(file => {
+                const sizeKb = Math.round(file.size / 1024);
+                const sizeStr = sizeKb > 1000 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+                
+                if (file.status === 'success') {
+                    html += `  <span style="color: var(--primary)">✔</span> <b>${file.name}</b> (${sizeStr})<br>`;
+                    html += `     └─ Số dòng quét: ${file.rowCount.toLocaleString('vi-VN')} dòng (Hợp lệ: ${file.successCount.toLocaleString('vi-VN')}, Bỏ qua: ${file.errorCount.toLocaleString('vi-VN')})<br>`;
+                    if (file.errorCount > 0) {
+                        const reasons = [];
+                        if (file.errors.missingInfo) reasons.push(`${file.errors.missingInfo} dòng thiếu thông tin bắt buộc (họ tên/mã thẻ)`);
+                        if (file.errors.invalidKcb) reasons.push(`${file.errors.invalidKcb} dòng không phân loại được Loại KCB`);
+                        if (file.errors.invalidAmount) reasons.push(`${file.errors.invalidAmount} dòng có số tiền không hợp lệ`);
+                        html += `     └─ Lý do bỏ qua: ${reasons.join(', ')}<br>`;
+                    }
+                } else {
+                    html += `  <span style="color: #ef4444">❌</span> <b style="color: #ef4444">${file.name}</b> (${sizeStr})<br>`;
+                    html += `     └─ <span style="color: #f87171">Lỗi: ${file.errorMessage}</span><br>`;
+                }
+            });
+
+            logContainer.innerHTML = html;
+            logPanel.style.display = 'block';
         }
 
         // Auto-fill hospital metadata if matching standard codes
         function autoFillMetadata() {
-            // First, try to find maCskcb from the parsed rows
+            // First, try to find maCskcb from the parsed files
             let detectedCode = "";
-            for (const row of appState.rows) {
-                if (row.maCskcb) {
-                    detectedCode = row.maCskcb;
+            for (const file of appState.files) {
+                if (file.maCskcb) {
+                    detectedCode = file.maCskcb;
                     break;
                 }
             }
@@ -1332,10 +1476,53 @@
                             }
                         }
 
-                        const startDataIndex = headerIndex === -1 ? 1 : headerIndex + 1;
-                        const parsedData = [];
+                        // Validation 1: Header not found
+                        if (headerIndex === -1) {
+                            reject(new Error("File không đúng cấu trúc XML1 hoặc thiếu các cột bắt buộc (Họ tên, Mã thẻ, Loại KCB)."));
+                            return;
+                        }
 
+                        // Validation 2: Verify specific required columns are mapped
+                        const missingCols = [];
+                        let mappedMaThe = false;
+                        let mappedHoTen = false;
+                        let mappedLoaiKcb = false;
+
+                        const headerRow = sheetData[headerIndex];
+                        for (let c = 0; c < headerRow.length; c++) {
+                            const val = String(headerRow[c] || "").toLowerCase().trim().replace(/_/g, "");
+                            if (val.includes("mathebhyt") || val.includes("mathe") || val.includes("madoituong")) mappedMaThe = true;
+                            if (val.includes("hoten") || val.includes("hovaten")) mappedHoTen = true;
+                            if (val.includes("maloaikcb") || val.includes("loaikcb")) mappedLoaiKcb = true;
+                        }
+
+                        if (!mappedMaThe) missingCols.push("Mã thẻ BHYT");
+                        if (!mappedHoTen) missingCols.push("Họ tên");
+                        if (!mappedLoaiKcb) missingCols.push("Mã loại KCB");
+
+                        if (missingCols.length > 0) {
+                            reject(new Error(`File thiếu các cột bắt buộc: ${missingCols.join(", ")}`));
+                            return;
+                        }
+
+                        const startDataIndex = headerIndex === -1 ? 1 : headerIndex + 1;
+                        
+                        const fileAggregated = {
+                            1: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                            2: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                            3: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 },
+                            4: { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 }
+                        };
+                        let detectedMaCskcb = "";
                         let dataRowsCount = 0;
+                        let successCount = 0;
+                        let errorCount = 0;
+                        const errorSummary = {
+                            missingInfo: 0,
+                            invalidKcb: 0,
+                            invalidAmount: 0
+                        };
+
                         for (let r = startDataIndex; r < sheetData.length; r++) {
                             const row = sheetData[r];
                             if (!row || row.length === 0) continue;
@@ -1351,17 +1538,62 @@
                             const fullName = String(row[col_ho_ten] || "").trim();
 
                             if (!cardId || !fullName) {
-                                continue; // Skip empty rows or headers
+                                if (cardId || fullName) {
+                                    // Row has name but no card ID, or vice versa
+                                    errorSummary.missingInfo++;
+                                    errorCount++;
+                                }
+                                continue; // Skip incomplete row
                             }
 
-                            parsedData.push({
-                                loaiKcb: String(row[col_loai_kcb] || ""),
-                                tongChiBh: parseNumber(row[col_tong_chi_bh]),
-                                tongChiBv: parseNumber(row[col_tong_chi_bv]),
-                                cct: parseNumber(row[col_cct]),
-                                nguonKhac: parseNumber(row[col_nguon_khac]),
-                                maCskcb: col_ma_cskcb !== -1 ? String(row[col_ma_cskcb] || "").trim() : ""
-                            });
+                            // Auto detect maCskcb if available
+                            if (col_ma_cskcb !== -1 && !detectedMaCskcb) {
+                                detectedMaCskcb = String(row[col_ma_cskcb] || "").trim();
+                            }
+
+                            const loaiKcb = String(row[col_loai_kcb] || "");
+                            const cat = getKcbCategory(loaiKcb);
+                            if (!cat) {
+                                errorSummary.invalidKcb++;
+                                errorCount++;
+                                continue;
+                            }
+
+                            // Validate amounts
+                            const valChiBh = row[col_tong_chi_bh];
+                            const valChiBv = row[col_tong_chi_bv];
+                            const valCct = row[col_cct];
+                            const valNguonKhac = row[col_nguon_khac];
+
+                            if (!isValidNumber(valChiBh) || !isValidNumber(valChiBv) || !isValidNumber(valCct) || !isValidNumber(valNguonKhac)) {
+                                errorSummary.invalidAmount++;
+                                errorCount++;
+                                continue;
+                            }
+
+                            const tongChiBh = parseNumber(valChiBh);
+                            const tongChiBv = parseNumber(valChiBv);
+                            const cct = parseNumber(valCct);
+                            const nguonKhac = parseNumber(valNguonKhac);
+
+                            if (tongChiBh < 0 || tongChiBv < 0 || cct < 0 || nguonKhac < 0) {
+                                errorSummary.invalidAmount++;
+                                errorCount++;
+                                continue;
+                            }
+
+                            successCount++;
+
+                            const item = fileAggregated[cat];
+                            const tuTraAmount = Math.max(0, tongChiBv - tongChiBh);
+
+                            item.count++;
+                            item.bhyt += tongChiBh;
+                            item.cungChiTra += cct;
+                            item.deNghi += (tongChiBh - cct);
+                            item.vienTro += nguonKhac;
+                            item.tuTra += tuTraAmount;
+                            item.tongChi += (tongChiBh + nguonKhac + tuTraAmount);
                         }
 
                         // Explicitly clear references to free RAM immediately
@@ -1369,7 +1601,14 @@
                         workbook = null;
                         sheetData = null;
 
-                        resolve({ rows: parsedData, rowCount: dataRowsCount });
+                        resolve({
+                            aggregated: fileAggregated,
+                            rowCount: dataRowsCount,
+                            maCskcb: detectedMaCskcb,
+                            successCount: successCount,
+                            errorCount: errorCount,
+                            errors: errorSummary
+                        });
                     } catch (err) {
                         data = null;
                         workbook = null;
@@ -1390,30 +1629,21 @@
                 appState.aggregated[i] = { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 };
             }
 
-            appState.rows.forEach(row => {
-                const cat = getKcbCategory(row.loaiKcb);
-                if (cat) {
-                    const item = appState.aggregated[cat];
-                    item.count++;
+            // Sum up aggregations from all uploaded files
+            appState.files.forEach(file => {
+                if (file.status === 'success') {
+                    for (let i = 1; i <= 4; i++) {
+                        const fileCat = file.aggregated[i];
+                        const grandCat = appState.aggregated[i];
 
-                    // Cột 3: Chi phí khám bệnh, chữa bệnh BHYT (Tổng chi trong phạm vi BHYT)
-                    item.bhyt += row.tongChiBh;
-
-                    // Cột 5: Bệnh nhân cùng chi trả
-                    item.cungChiTra += row.cct;
-
-                    // Cột 4: Đề nghị quỹ BHYT thanh toán (Cột 3 - Cột 5)
-                    item.deNghi += (row.tongChiBh - row.cct);
-
-                    // Cột 6: Chi phí viện trợ, tài trợ
-                    item.vienTro += row.nguonKhac;
-
-                    // Cột 7: Chi phí người bệnh tự trả (Tổng chi BV - Chi phí trong phạm vi BHYT)
-                    const tuTraAmount = Math.max(0, row.tongChiBv - row.tongChiBh);
-                    item.tuTra += tuTraAmount;
-
-                    // Cột 2: Tổng chi = Cột 3 + Cột 6 + Cột 7
-                    item.tongChi += (row.tongChiBh + row.nguonKhac + tuTraAmount);
+                        grandCat.count += fileCat.count;
+                        grandCat.tongChi += fileCat.tongChi;
+                        grandCat.bhyt += fileCat.bhyt;
+                        grandCat.deNghi += fileCat.deNghi;
+                        grandCat.cungChiTra += fileCat.cungChiTra;
+                        grandCat.vienTro += fileCat.vienTro;
+                        grandCat.tuTra += fileCat.tuTra;
+                    }
                 }
             });
         }
@@ -1425,14 +1655,22 @@
                 const sizeKb = Math.round(file.size / 1024);
                 const sizeStr = sizeKb > 1000 ? (sizeKb / 1024).toFixed(1) + ' MB' : sizeKb + ' KB';
 
+                const isError = file.status === 'error';
+                const textColor = isError ? 'color: #ef4444;' : '';
+                const rowCountStr = isError ? 'Lỗi cấu trúc/đọc file' : `${file.rowCount.toLocaleString('vi-VN')} dòng`;
+
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
+                if (isError) {
+                    fileItem.style.borderLeftColor = '#ef4444';
+                    fileItem.style.background = 'rgba(239, 68, 68, 0.02)';
+                }
                 fileItem.innerHTML = `
                 <div class="file-info">
-                    <svg class="file-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <svg class="file-icon" style="${isError ? 'stroke: #ef4444;' : ''}" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     <div class="file-details">
-                        <span class="file-name" title="${file.name}">${file.name}</span>
-                        <span class="file-size">${sizeStr} | ${file.rowCount.toLocaleString('vi-VN')} dòng</span>
+                        <span class="file-name" style="${textColor}" title="${file.name}">${file.name}</span>
+                        <span class="file-size" style="${isError ? 'color: #f87171;' : ''}">${sizeStr} | ${rowCountStr}</span>
                     </div>
                 </div>
                 <button class="btn-delete" data-index="${index}" title="Xóa file này">
@@ -1452,24 +1690,35 @@
         // Delete a file and reprocess data
         function removeFile(index) {
             showLoader("Đang cập nhật lại dữ liệu...");
-            setTimeout(async () => {
+            setTimeout(() => {
                 appState.files.splice(index, 1);
 
-                // Re-read and re-aggregate all remaining files
-                appState.rows = [];
+                // Re-aggregate the remaining files if already processed
+                if (appState.processed) {
+                    aggregateData();
+                }
 
-                // Since we can't easily re-read from File object stored in appState if they are not stored in memory,
-                // we will need the user to re-upload if they want to build from scratch.
-                // Wait! To keep it simple, we can reset data or if we had stored the rows, we can filter them by file.
-                // BUT wait! In browser JS, if we don't hold the original File objects, we cannot re-read them.
-                // Let's store the File objects in `appState.fileObjects`!
-                // Yes, let's keep references to the File objects in the state so we can re-evaluate easily!
-                // Let's modify handleFiles to store File objects in appState.fileObjects.
-                // For now, let's just do a full reset or warn the user.
-                // Let's implement full File object storage to make file removal work perfectly!
-                resetData();
+                // Update UI elements
+                updateFileListUI();
+                updatePreviewTable();
+
+                if (appState.files.length === 0) {
+                    resetData();
+                } else {
+                    btnReset.disabled = false;
+                    
+                    // Update log panel
+                    writeProcessingLogs();
+                    
+                    if (appState.processed) {
+                        btnExportPortrait.disabled = false;
+                        btnExportLandscape.disabled = false;
+                        btnProcess.disabled = true;
+                    } else {
+                        btnProcess.disabled = false;
+                    }
+                }
                 hideLoader();
-                alert("Đã xóa file. Vui lòng tải lại các file cần thiết.");
             }, 100);
         }
 
@@ -1498,7 +1747,6 @@
         // Reset application state
         function resetData() {
             appState.files = [];
-            appState.rows = [];
             appState.processed = false;
             for (let i = 1; i <= 4; i++) {
                 appState.aggregated[i] = { count: 0, tongChi: 0, bhyt: 0, deNghi: 0, cungChiTra: 0, vienTro: 0, tuTra: 0 };
@@ -1512,11 +1760,15 @@
             btnProcess.disabled = true;
             btnExportPortrait.disabled = true;
             btnExportLandscape.disabled = true;
+
+            // Clear and hide logs
+            logContainer.innerHTML = '';
+            logPanel.style.display = 'none';
         }
 
         // Render aggregated values in preview table and update stats
         function updatePreviewTable() {
-            if (!appState.processed || appState.rows.length === 0) {
+            if (!appState.processed || appState.files.length === 0) {
                 const hintText = appState.files.length > 0
                     ? "Dữ liệu chưa được xử lý. Vui lòng nhấn nút 'Xử Lý Dữ Liệu' ở trên để bắt đầu tổng hợp."
                     : "Vui lòng tải dữ liệu Excel XML1 lên để xem trước kết quả";
@@ -1718,6 +1970,29 @@
 
         // Export DOCX handler
         function handleExport(isLandscape) {
+            // Totals check for validation
+            let tDeNghiVal = 0;
+            for (let i = 1; i <= 4; i++) {
+                tDeNghiVal += appState.aggregated[i].deNghi;
+            }
+
+            if (tDeNghiVal === 0) {
+                const confirmExport = confirm("Cảnh báo: Tổng chi phí đề nghị BHYT thanh toán bằng 0. Bạn có chắc chắn muốn xuất báo cáo không?");
+                if (!confirmExport) return;
+            }
+
+            let totalErrors = 0;
+            appState.files.forEach(f => {
+                if (f.status === 'success') {
+                    totalErrors += f.errorCount;
+                }
+            });
+
+            if (totalErrors > 0) {
+                const confirmExport = confirm(`Cảnh báo: Có tổng cộng ${totalErrors.toLocaleString('vi-VN')} dòng dữ liệu bị bỏ qua (lỗi định dạng/thiếu thông tin) trong quá trình xử lý. Bạn có chắc chắn muốn xuất báo cáo không?`);
+                if (!confirmExport) return;
+            }
+
             showLoader("Đang tạo báo cáo DOCX...");
 
             setTimeout(() => {
